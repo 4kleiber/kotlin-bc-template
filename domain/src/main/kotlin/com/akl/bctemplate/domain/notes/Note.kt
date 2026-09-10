@@ -4,8 +4,9 @@ import java.time.Instant
 import java.util.UUID
 
 // The aggregate is a pure fold of its event history, never persisted directly — see
-// NoteEventStore. Command methods (publish/archive) don't mutate; they inspect the current
-// state and return the next event to append, or null if the transition is invalid.
+// NoteService, which replays it fresh on every read; there is no stored row. Command methods
+// (publish/archive) don't mutate; they inspect the current state and return the next event to
+// append, or null if the transition is invalid.
 data class Note(
     val id: UUID,
     val title: String,
@@ -26,10 +27,9 @@ data class Note(
     }
 
     companion object {
-        // The single place that defines what each event means. Reused on the write side to
-        // rebuild the aggregate before deciding the next command (see NoteService), and on the
-        // read side by storage to fold events into the notes_projection table (see
-        // ExposedNoteEventStore and NoteProjectionRebuilder) — one fold, two consumers.
+        // The single place that defines what each event means — used both to rebuild the
+        // aggregate before deciding the next command and to answer every read (see
+        // NoteService: both paths are just replay(loadEvents(id))).
         fun apply(note: Note?, event: NoteEvent): Note = when (event) {
             is NoteCreated -> Note(
                 id = event.noteId,
