@@ -1,10 +1,11 @@
 # kotlin-bc-template
 
 A template repository showing how to structure a **bounded context** service in Kotlin
-with **hexagonal architecture** (a.k.a. ports and adapters), Spring Boot, and Jetbrains
-Exposed. It's built as three Gradle modules — `domain`, `storage`, `application` — with a
-small, complete example bounded context (`notes`) wired end-to-end through all three, plus a
-PR test pipeline, release-please releases, and Jib-based image publishing to GHCR.
+with **hexagonal architecture** (a.k.a. ports and adapters), **event sourcing**, Spring Boot,
+and Jetbrains Exposed. It's built as three Gradle modules — `domain`, `storage`,
+`application` — with a small, complete example bounded context (`notes`) wired end-to-end
+through all three, plus a PR test pipeline, release-please releases, and Jib-based image
+publishing to GHCR.
 
 See [`agent.md`](agent.md) (symlinked as `CLAUDE.md`) for the full architecture rules, tech
 stack, and TDD/commit conventions this repo follows and expects new bounded contexts to
@@ -14,14 +15,17 @@ follow.
 
 ```
 application → {domain, storage}   Spring Boot entry point, HTTP + kotlinx.html adapters
-storage     → {domain}            Exposed ORM repository implementations, Flyway migrations
-domain      → {}                  Framework-free entities, repository ports, @DomainService classes
+storage     → {domain}            Exposed event store + projection adapters, Flyway migrations
+domain      → {}                  Framework-free events/aggregates, ports, @DomainService classes
 ```
 
 The `notes` bounded context (draft → published → archived) is implemented in all three
-modules as the worked example: a domain entity with behavior methods, a repository port and
-`@DomainService`, an Exposed table and adapter, a Flyway migration, a REST API
-(`/api/notes`), and a minimal kotlinx.html page (`/notes`).
+modules as the worked example, **event-sourced end to end**: a sealed `NoteEvent` hierarchy
+and an aggregate (`Note`) that's a fold of its event history rather than a stored row, an
+event-store port + a read-only projection port, an `@DomainService`, an append-only
+`notes_events` Exposed table plus a derived, rebuildable `notes_projection` table, a REST API
+(`/api/notes`), and a minimal kotlinx.html page (`/notes`). See `agent.md`'s **Event
+Sourcing** section for how the pieces fit together.
 
 ## Starting a new service from this template
 
@@ -38,11 +42,13 @@ modules as the worked example: a domain entity with behavior methods, a reposito
 ## Adding a new bounded context
 
 Follow the `notes` example end-to-end, one TDD cycle at a time — see `agent.md`'s **Using
-This Template → Adding a new bounded context** section for the full walkthrough (entity →
-repository port → `@DomainService` → unit tests → Exposed table → adapter → Flyway migration
-→ controller → integration test). Because `DomainConfiguration` auto-registers every
-`@DomainService` via `@ComponentScan`, wiring a new bounded context's service never requires
-editing a shared configuration file.
+This Template → Adding a new bounded context** section for the full walkthrough (events →
+aggregate → event store + projection ports → `@DomainService` → unit tests → events/projection
+tables → adapters → Flyway migration → controller → integration test). Because
+`DomainConfiguration` auto-registers every `@DomainService` via `@ComponentScan`, wiring a new
+bounded context's service never requires editing a shared configuration file — and because the
+event-sourced write side stays behind the domain/storage seam, nothing in `application` needs
+to know it exists.
 
 ## Running locally
 
