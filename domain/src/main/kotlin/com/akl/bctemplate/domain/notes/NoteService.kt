@@ -17,7 +17,7 @@ class NoteService(private val eventStore: EventStore) {
     }
 
     fun listNotes(pageRequest: PageRequest): Page<Note> {
-        val streamIds = eventStore.listStreamIds(TENANT_ID, NoteEventCodec.STREAM_TYPE, pageRequest)
+        val streamIds = eventStore.listStreamIds(TENANT_ID, NoteEvent.STREAM_TYPE, pageRequest)
         val notes = streamIds.content.mapNotNull(::findNote)
         return Page(notes, streamIds.totalElements, streamIds.totalPages, streamIds.page, streamIds.size)
     }
@@ -40,10 +40,12 @@ class NoteService(private val eventStore: EventStore) {
     }
 
     private fun loadEvents(id: UUID): List<NoteEvent> =
-        eventStore.loadEvents(TENANT_ID, id, NoteEventCodec.STREAM_TYPE).map(NoteEventCodec::decode)
+        eventStore.loadEvents(TENANT_ID, id, NoteEvent.STREAM_TYPE).map(NoteEventDecoder::decode)
 
+    // events (List<NoteEvent>) is passed straight through as List<DomainEvent> — NoteEvent
+    // extends DomainEvent directly, so no translation step is needed on the way in.
     private fun appendEvents(id: UUID, expectedVersion: Long, events: List<NoteEvent>) =
-        eventStore.append(TENANT_ID, id, NoteEventCodec.STREAM_TYPE, expectedVersion, events.map(NoteEventCodec::encode))
+        eventStore.append(TENANT_ID, id, NoteEvent.STREAM_TYPE, expectedVersion, events)
 
     companion object {
         // This template has no multi-tenancy of its own — every Note lives under one

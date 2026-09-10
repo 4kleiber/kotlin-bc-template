@@ -7,10 +7,10 @@ import java.util.UUID
 // since EventStore itself is generic across stream types. No mocking framework needed, per
 // CLAUDE.md's Integration Tests / domain-unit-test conventions.
 class FakeEventStore : EventStore {
-    private val streams = mutableMapOf<Pair<UUID, String>, MutableList<DomainEvent>>()
+    private val streams = mutableMapOf<Pair<UUID, String>, MutableList<StoredEvent>>()
     private var nextSequence = 1L
 
-    override fun append(tenantId: UUID, streamId: UUID, streamType: String, expectedVersion: Long, events: List<NewDomainEvent>) {
+    override fun append(tenantId: UUID, streamId: UUID, streamType: String, expectedVersion: Long, events: List<DomainEvent>) {
         val key = streamId to streamType
         val stream = streams.getOrPut(key) { mutableListOf() }
         if (stream.size.toLong() != expectedVersion) {
@@ -18,23 +18,23 @@ class FakeEventStore : EventStore {
         }
         events.forEach { event ->
             stream.add(
-                DomainEvent(
-                    id = UUID.randomUUID(),
-                    tenantId = tenantId,
+                StoredEvent(
                     streamId = streamId,
                     streamType = streamType,
-                    version = stream.size.toLong() + 1,
                     eventType = event.eventType,
-                    eventData = event.eventData,
+                    occurredAt = event.occurredAt,
                     metadata = event.metadata,
-                    createdAt = event.occurredAt,
+                    id = UUID.randomUUID(),
+                    tenantId = tenantId,
+                    version = stream.size.toLong() + 1,
                     sequenceNumber = nextSequence++,
+                    eventData = event.data(),
                 ),
             )
         }
     }
 
-    override fun loadEvents(tenantId: UUID, streamId: UUID, streamType: String): List<DomainEvent> =
+    override fun loadEvents(tenantId: UUID, streamId: UUID, streamType: String): List<StoredEvent> =
         streams[streamId to streamType].orEmpty()
 
     override fun listStreamIds(tenantId: UUID, streamType: String, pageRequest: PageRequest): Page<UUID> {

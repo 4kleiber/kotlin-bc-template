@@ -3,36 +3,46 @@ package com.akl.bctemplate.domain
 import java.time.Instant
 import java.util.UUID
 
-// Mirrors the shared `events` table's columns exactly (see storage's EventsTable) — this is
-// what a stored, already-appended event looks like once read back from EventStore.loadEvents.
-// `eventData`/`metadata` are generic key-value payloads rather than a typed business event:
-// each bounded context's own codec (e.g. notes' NoteEventCodec) maps them to/from its own
-// typed events based on `eventType`. Keeping them as a plain Kotlin Map — not a JSON string —
-// is what lets domain stay framework-free while storage still owns turning them into/out of
-// JSONB; only storage imports a JSON library.
-data class DomainEvent(
+// What every bounded context's event needs before it's ever persisted. A bounded context's
+// own event hierarchy (e.g. notes.NoteEvent/NoteCreated) extends this directly and overrides
+// `streamId`/`occurredAt` in its own primary constructor — required for Kotlin's data class
+// equals()/hashCode()/copy() to actually include them, since data classes only look at their
+// own primary-constructor properties, not inherited ones — and implements `data()` with
+// whatever extra business fields that event carries.
+//
+// `data()` is the one method EventStore needs to persist ANY bounded context's event
+// generically: ExposedEventStore.append() calls `event.streamId`/`.eventType`/`.occurredAt`/
+// `.metadata`/`.data()` and never imports a bounded-context-specific type. There's
+// deliberately no encode/decode step on the way in — a NoteCreated instance already *is* a
+// DomainEvent, handed straight to EventStore.append(). Reading back still needs one (see
+// StoredEvent's doc) — that direction can't be avoided by any amount of inheritance, since
+// turning a generic row back into a specific Kotlin type requires code that knows the type.
+abstract class DomainEvent(
+    open val streamId: UUID,
+    open val streamType: String,
+    open val eventType: String,
+    open val occurredAt: Instant,
+    open val metadata: Map<String, Any?>? = null,
+) {
+    abstract fun data(): Map<String, Any?>
+}
+
+// The generic materialization of an already-persisted row (see EventStore.loadEvents). `id`,
+// `tenantId`, `version`, and `sequenceNumber` only exist once a row does, so they live here
+// rather than on DomainEvent itself — a "new" event a bounded context constructs doesn't know
+// them yet. A bounded context's own decoder (e.g. notes.NoteEventDecoder) pattern-matches on
+// `eventType` + `data()` to reconstruct its own typed event for replay.
+data class StoredEvent(
+    override val streamId: UUID,
+    override val streamType: String,
+    override val eventType: String,
+    override val occurredAt: Instant,
+    override val metadata: Map<String, Any?>?,
     val id: UUID,
     val tenantId: UUID,
-    val streamId: UUID,
-    val streamType: String,
     val version: Long,
-    val eventType: String,
-    val eventData: Map<String, Any?>,
-    val metadata: Map<String, Any?>?,
-    val createdAt: Instant,
-    // A separate, purely-additive counter — see EventStore's doc — giving the exact global
-    // order every event was ever created in, across every tenant and stream, not just the
-    // order within one stream (that's `version`'s job).
     val sequenceNumber: Long,
-)
-
-// What a caller hands to EventStore.append() before it exists as a row: no id, version, or
-// sequenceNumber yet — the store assigns those. `occurredAt` is the domain's own timestamp for
-// when the fact happened (e.g. Note.publish()'s `now` parameter), persisted as `created_at`
-// rather than left to whatever moment the INSERT physically runs.
-data class NewDomainEvent(
-    val eventType: String,
     val eventData: Map<String, Any?>,
-    val metadata: Map<String, Any?>? = null,
-    val occurredAt: Instant,
-)
+) : DomainEvent(streamId, streamType, eventType, occurredAt, metadata) {
+    override fun data(): Map<String, Any?> = eventData
+}
