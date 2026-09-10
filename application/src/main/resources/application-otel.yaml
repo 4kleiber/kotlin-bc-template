@@ -1,0 +1,19 @@
+management:
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1
+  otlp:
+    metrics:
+      export:
+        enabled: true
+        url: ${OTEL_METRICS_URL:http://localhost:4318/v1/metrics}
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTEL_TRACES_URL:http://localhost:4318/v1/traces}
+    logging:
+      export:
+        otlp:
+          endpoint: ${OTEL_LOGS_URL:http://localhost:4318/v1/logs}

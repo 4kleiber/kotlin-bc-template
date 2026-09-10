@@ -1,0 +1,29 @@
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/localdb?currentSchema=bctemplate
+    username: local
+    password: local
+  flyway:
+    schemas: bctemplate
+    create-schemas: true
+  autoconfigure:
+    exclude:
+      - net.ttddyy.observation.boot.autoconfigure.DataSourceObservationAutoConfiguration
+      - net.ttddyy.observation.boot.autoconfigure.opentelemetry.DataSourceObservationOpenTelemetryAutoConfiguration
+management:
+  tracing:
+    enabled: false
+  otlp:
+    metrics:
+      export:
+        enabled: false
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: http://localhost:4318/v1/traces
+    logging:
+      export:
+        otlp:
+          endpoint: http://localhost:4318/v1/logs
