@@ -61,7 +61,7 @@ class NotesController(private val noteService: NoteService) {
     }
 
     private fun Note.toResponse() = NoteResponse(
-        id = id!!,
+        id = id,
         title = title,
         body = body,
         status = status.name,
