@@ -21,11 +21,13 @@ domain      → {}                  Framework-free events/aggregates, ports, @Do
 
 The `notes` bounded context (draft → published → archived) is implemented in all three
 modules as the worked example, **event-sourced end to end**: a sealed `NoteEvent` hierarchy
-and an aggregate (`Note`) that's a fold of its event history rather than a stored row, an
-event-store port + a read-only projection port, an `@DomainService`, an append-only
-`notes_events` Exposed table plus a derived, rebuildable `notes_projection` table, a REST API
-(`/api/notes`), and a minimal kotlinx.html page (`/notes`). See `agent.md`'s **Event
-Sourcing** section for how the pieces fit together.
+extending the shared `DomainEvent` abstract class, an aggregate (`Note`) that's a fold of its
+event history rather than a stored row, an event-store port + a read-only projection port, an
+`@DomainService`, a REST API (`/api/notes`), and a minimal kotlinx.html page (`/notes`).
+Every bounded context's facts append to the **one** shared, append-only `events` Exposed
+table — a single global sequence orders every event any bounded context has ever created —
+alongside `notes`' own derived, rebuildable `notes_projection` table. See `agent.md`'s
+**Event Sourcing** section for how the pieces fit together.
 
 ## Starting a new service from this template
 
@@ -43,12 +45,12 @@ Sourcing** section for how the pieces fit together.
 
 Follow the `notes` example end-to-end, one TDD cycle at a time — see `agent.md`'s **Using
 This Template → Adding a new bounded context** section for the full walkthrough (events →
-aggregate → event store + projection ports → `@DomainService` → unit tests → events/projection
-tables → adapters → Flyway migration → controller → integration test). Because
-`DomainConfiguration` auto-registers every `@DomainService` via `@ComponentScan`, wiring a new
-bounded context's service never requires editing a shared configuration file — and because the
-event-sourced write side stays behind the domain/storage seam, nothing in `application` needs
-to know it exists.
+aggregate → event store + projection ports → `@DomainService` → unit tests → a projection
+table (the events table already exists and is shared) → adapters → Flyway migration →
+controller → integration test). Because `DomainConfiguration` auto-registers every
+`@DomainService` via `@ComponentScan`, wiring a new bounded context's service never requires
+editing a shared configuration file — and because the event-sourced write side stays behind
+the domain/storage seam, nothing in `application` needs to know it exists.
 
 ## Running locally
 
