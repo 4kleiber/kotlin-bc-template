@@ -32,6 +32,10 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-jdbc:$exposedVersion")
     implementation("org.jetbrains.exposed:exposed-java-time:$exposedVersion")
     implementation("org.jetbrains.exposed:exposed-json:$exposedVersion")
+    // Serializes each NoteEvent subtype's payload to/from the notes_events.payload column
+    // (see NoteEventCodec). Version comes from the Spring Boot BOM imported above, matching
+    // the Jackson 3 ("tools.jackson") coordinates application already uses.
+    implementation("tools.jackson.core:jackson-databind")
     implementation ("org.flywaydb:flyway-core:${flywayVersion}")
     implementation("org.flywaydb:flyway-database-postgresql:${flywayVersion}")
     implementation("org.springframework.boot:spring-boot-starter-flyway")
