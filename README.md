@@ -15,19 +15,20 @@ follow.
 
 ```
 application → {domain, storage}   Spring Boot entry point, HTTP + kotlinx.html adapters
-storage     → {domain}            Exposed event store + projection adapters, Flyway migrations
-domain      → {}                  Framework-free events/aggregates, ports, @DomainService classes
+storage     → {domain}            The ONE generic Exposed event store, shared by every bounded context
+domain      → {}                  Framework-free events/aggregates, the EventStore port, @DomainService classes
 ```
 
-The `notes` bounded context (draft → published → archived) is implemented in all three
-modules as the worked example, **event-sourced end to end**: a sealed `NoteEvent` hierarchy
-extending the shared `DomainEvent` abstract class, an aggregate (`Note`) that's a fold of its
-event history rather than a stored row, an event-store port + a read-only projection port, an
-`@DomainService`, a REST API (`/api/notes`), and a minimal kotlinx.html page (`/notes`).
+The `notes` bounded context (draft → published → archived) is implemented as the worked
+example, **event-sourced with no persisted read model**: a sealed `NoteEvent` hierarchy, an
+aggregate (`Note`) that's a fold of its event history, an `@DomainService` calling the shared
+`EventStore` port directly (no bounded-context-specific event store type), a REST API
+(`/api/notes`), and a minimal kotlinx.html page (`/notes`). Every read — `GET /api/notes/{id}`
+included — replays that Note's events fresh; there's no projection table to keep in sync.
 Every bounded context's facts append to the **one** shared, append-only `events` Exposed
-table — a single global sequence orders every event any bounded context has ever created —
-alongside `notes`' own derived, rebuildable `notes_projection` table. See `agent.md`'s
-**Event Sourcing** section for how the pieces fit together.
+table (tagged by `tenant_id`/`stream_type`), ordered by a global `sequence_number` sequence
+that gives the exact order every event, from any bounded context, was ever created in. See
+`agent.md`'s **Event Sourcing** section for how the pieces fit together.
 
 ## Starting a new service from this template
 
@@ -45,17 +46,19 @@ alongside `notes`' own derived, rebuildable `notes_projection` table. See `agent
 
 Follow the `notes` example end-to-end, one TDD cycle at a time — see `agent.md`'s **Using
 This Template → Adding a new bounded context** section for the full walkthrough (events →
-aggregate → event store + projection ports → `@DomainService` → unit tests → a projection
-table (the events table already exists and is shared) → adapters → Flyway migration →
-controller → integration test). Because `DomainConfiguration` auto-registers every
+aggregate → a codec mapping them to the generic envelope → `@DomainService` calling the
+existing `EventStore` directly → unit tests → controller → integration test). There's no
+storage-layer step: a new bounded context reuses the same `ExposedEventStore` bean as-is, no
+new table or adapter class. Because `DomainConfiguration` auto-registers every
 `@DomainService` via `@ComponentScan`, wiring a new bounded context's service never requires
-editing a shared configuration file — and because the event-sourced write side stays behind
-the domain/storage seam, nothing in `application` needs to know it exists.
+editing a shared configuration file either — and because the event-sourced write side stays
+behind the domain/storage seam, nothing in `application` needs to know it exists.
 
 ## Running locally
 
 ```sh
 git config core.hooksPath .githooks   # enable the Conventional Commits check, once per clone
+direnv allow                          # optional: loads .env into your shell automatically (see .envrc)
 docker compose up -d                  # Postgres + Grafana LGTM + an OTel Collector
 ./gradlew bootRun                     # add --args='--spring.profiles.active=otel' to export traces/metrics/logs
 ```
