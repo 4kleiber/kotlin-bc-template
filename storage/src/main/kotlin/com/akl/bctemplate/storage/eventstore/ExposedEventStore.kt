@@ -3,9 +3,9 @@ package com.akl.bctemplate.storage.eventstore
 import com.akl.bctemplate.domain.ConcurrentEventAppendException
 import com.akl.bctemplate.domain.DomainEvent
 import com.akl.bctemplate.domain.EventStore
-import com.akl.bctemplate.domain.NewDomainEvent
 import com.akl.bctemplate.domain.Page
 import com.akl.bctemplate.domain.PageRequest
+import com.akl.bctemplate.domain.StoredEvent
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -20,13 +20,15 @@ import java.util.UUID
 
 // The one EventStore implementation for every bounded context: nothing here knows about
 // "Note" or any other stream_type — that's just a string parameter, supplied by whichever
-// bounded context's codec is calling. There is deliberately no per-bounded-context adapter
+// bounded context's @DomainService is calling. append() handles any DomainEvent generically
+// via its data()/eventType/metadata/occurredAt — it never imports a bounded-context-specific
+// event class (e.g. notes.NoteCreated). There is deliberately no per-bounded-context adapter
 // class (contrast with a hypothetical "ExposedNoteEventStore").
 @Repository
 @Transactional
 class ExposedEventStore : EventStore {
 
-    override fun append(tenantId: UUID, streamId: UUID, streamType: String, expectedVersion: Long, events: List<NewDomainEvent>) {
+    override fun append(tenantId: UUID, streamId: UUID, streamType: String, expectedVersion: Long, events: List<DomainEvent>) {
         val currentVersion = currentVersion(tenantId, streamId, streamType)
         if (currentVersion != expectedVersion) {
             throw ConcurrentEventAppendException(streamType, streamId, expectedVersion, currentVersion)
@@ -39,14 +41,14 @@ class ExposedEventStore : EventStore {
                 it[EventsTable.streamType] = streamType
                 it[EventsTable.version] = expectedVersion + index + 1
                 it[EventsTable.eventType] = event.eventType
-                it[EventsTable.eventData] = event.eventData
+                it[EventsTable.eventData] = event.data()
                 it[EventsTable.metadata] = event.metadata
                 it[createdAt] = event.occurredAt.atOffset(ZoneOffset.UTC)
             }
         }
     }
 
-    override fun loadEvents(tenantId: UUID, streamId: UUID, streamType: String): List<DomainEvent> =
+    override fun loadEvents(tenantId: UUID, streamId: UUID, streamType: String): List<StoredEvent> =
         EventsTable.selectAll()
             .where {
                 (EventsTable.tenantId eq tenantId) and
@@ -54,7 +56,7 @@ class ExposedEventStore : EventStore {
                     (EventsTable.streamType eq streamType)
             }
             .orderBy(EventsTable.version, SortOrder.ASC)
-            .map { it.toDomainEvent() }
+            .map { it.toStoredEvent() }
 
     // The only way to discover which streams exist for a type — there is no projection table
     // listing them. Distinct-then-paginate-in-memory keeps this simple for the template; a
@@ -85,7 +87,7 @@ class ExposedEventStore : EventStore {
             }
             .maxOfOrNull { it[EventsTable.version] } ?: 0L
 
-    private fun ResultRow.toDomainEvent() = DomainEvent(
+    private fun ResultRow.toStoredEvent() = StoredEvent(
         id = this[EventsTable.id],
         tenantId = this[EventsTable.tenantId],
         streamId = this[EventsTable.streamId],
@@ -94,7 +96,7 @@ class ExposedEventStore : EventStore {
         eventType = this[EventsTable.eventType],
         eventData = this[EventsTable.eventData],
         metadata = this[EventsTable.metadata],
-        createdAt = this[EventsTable.createdAt].toInstant(),
+        occurredAt = this[EventsTable.createdAt].toInstant(),
         sequenceNumber = this[EventsTable.sequenceNumber],
     )
 }
