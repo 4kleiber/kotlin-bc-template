@@ -159,10 +159,12 @@ All integration tests extend `AbstractIntegrationTest` (application module). It 
   - `@DirtiesContext` — never use this
 - If a spy or mock is needed in only some tests, add it to the base class anyway; a dormant mock does not affect other tests but a context restart affects all of them.
 
-**Data isolation without restarting:**
+**Data isolation without restarting — mandatory, not a suggestion:**
 
-- Use randomly generated IDs (e.g. `UUID.randomUUID()`) for every entity created in a test. The container runs with `withReuse(true)`, so a persistent database is shared across test runs; random IDs prevent collisions.
-- Clean up test data only when necessary (e.g. a test asserts on an exact row count). Prefer random IDs so leftover data from previous runs is invisible to other tests.
+- **Every entity, tenant, and stream a test creates must use a fresh random identifier** — `UUID.randomUUID()` for UUIDs, an equivalent for any other ID type. Never a fixed, hardcoded, or sequential value (`UUID.fromString("...")` with a literal, `"test-user-1"`, incrementing counters). This applies everywhere an ID is test-generated: entity/aggregate/stream ids, tenant ids (`EventStoreIntegrationTest` generates its own `tenantId` per test for exactly this reason), usernames, emails — anything that could collide with another test's data.
+- **Why this is mandatory, not just tidy**: `AbstractIntegrationTest`'s Postgres container runs with `withReuse(true)` and Ryuk disabled (see `testcontainers.properties`), so the *same* container — and every row any test has ever written to it — persists across test runs on a given machine, not just within one run. That reuse is what makes the local dev loop fast (skipping the ~1-2s container-start cost on every single `./gradlew test`); the trade-off is that stale data from a previous run is still sitting there. Random IDs are the only reason that's safe: a test can never collide with, overwrite, or accidentally match data from any earlier run. Falling back to a fresh container per run (or truncating tables between runs) to work around non-random IDs would defeat the entire point of `withReuse(true)` — don't do that; fix the IDs instead.
+- Never clean up test data as a substitute for random IDs — write it once with a random identifier and leave it. Only delete data when a test's assertion genuinely requires it (e.g. asserting an exact row/stream count), and even then scope the deletion to that test's own random ID, never a table-wide truncate that would affect other tests' leftover data or a concurrently-running test.
+- Never assert on a table-wide count, "first N rows/streams", or anything else that stale data from earlier runs could affect — assert only on entities identified by the test's own random IDs (see `EventStoreIntegrationTest`'s `listStreamIds` tests: each generates its own `tenantId`, so it only ever sees streams it created itself).
 
 **Test environment parity with production:**
 
