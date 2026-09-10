@@ -2,8 +2,8 @@ package com.akl.bctemplate.application.eventstore
 
 import com.akl.bctemplate.application.AbstractIntegrationTest
 import com.akl.bctemplate.domain.ConcurrentEventAppendException
+import com.akl.bctemplate.domain.DomainEvent
 import com.akl.bctemplate.domain.EventStore
-import com.akl.bctemplate.domain.NewDomainEvent
 import com.akl.bctemplate.domain.PageRequest
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -21,14 +21,31 @@ class EventStoreIntegrationTest : AbstractIntegrationTest() {
     @Autowired
     private lateinit var eventStore: EventStore
 
-    private val streamType = "IntegrationTestWidget"
+    private val streamType = STREAM_TYPE
+
+    // A stand-in for a bounded context's own event class (e.g. notes.NoteCreated) — DomainEvent
+    // is abstract, so a concrete subclass is needed to construct one directly, exactly like a
+    // real bounded context would. Nested (not inner) so it can't accidentally reach the outer
+    // test instance — it references the companion's constant instead of the outer `streamType`.
+    private data class WidgetEvent(
+        override val streamId: UUID,
+        override val eventType: String,
+        val fields: Map<String, Any?>,
+        override val occurredAt: Instant,
+    ) : DomainEvent(streamId, STREAM_TYPE, eventType, occurredAt) {
+        override fun data(): Map<String, Any?> = fields
+    }
+
+    companion object {
+        private const val STREAM_TYPE = "IntegrationTestWidget"
+    }
 
     @Test
     fun `append then loadEvents replays a stream's events in version order`() {
         val tenantId = UUID.randomUUID()
         val streamId = UUID.randomUUID()
-        val created = NewDomainEvent("Created", mapOf("name" to "Widget"), occurredAt = Instant.now())
-        val renamed = NewDomainEvent("Renamed", mapOf("name" to "New name"), occurredAt = Instant.now())
+        val created = WidgetEvent(streamId, "Created", mapOf("name" to "Widget"), Instant.now())
+        val renamed = WidgetEvent(streamId, "Renamed", mapOf("name" to "New name"), Instant.now())
 
         eventStore.append(tenantId, streamId, streamType, 0, listOf(created))
         eventStore.append(tenantId, streamId, streamType, 1, listOf(renamed))
@@ -43,10 +60,10 @@ class EventStoreIntegrationTest : AbstractIntegrationTest() {
     fun `append rejects a stale expected version`() {
         val tenantId = UUID.randomUUID()
         val streamId = UUID.randomUUID()
-        eventStore.append(tenantId, streamId, streamType, 0, listOf(NewDomainEvent("Created", emptyMap(), occurredAt = Instant.now())))
+        eventStore.append(tenantId, streamId, streamType, 0, listOf(WidgetEvent(streamId, "Created", emptyMap(), Instant.now())))
 
         assertFailsWith<ConcurrentEventAppendException> {
-            eventStore.append(tenantId, streamId, streamType, 0, listOf(NewDomainEvent("Renamed", emptyMap(), occurredAt = Instant.now())))
+            eventStore.append(tenantId, streamId, streamType, 0, listOf(WidgetEvent(streamId, "Renamed", emptyMap(), Instant.now())))
         }
     }
 
@@ -60,8 +77,8 @@ class EventStoreIntegrationTest : AbstractIntegrationTest() {
         val tenantId = UUID.randomUUID()
         val streamA = UUID.randomUUID()
         val streamB = UUID.randomUUID()
-        eventStore.append(tenantId, streamA, streamType, 0, listOf(NewDomainEvent("Created", emptyMap(), occurredAt = Instant.now())))
-        eventStore.append(tenantId, streamB, streamType, 0, listOf(NewDomainEvent("Created", emptyMap(), occurredAt = Instant.now())))
+        eventStore.append(tenantId, streamA, streamType, 0, listOf(WidgetEvent(streamA, "Created", emptyMap(), Instant.now())))
+        eventStore.append(tenantId, streamB, streamType, 0, listOf(WidgetEvent(streamB, "Created", emptyMap(), Instant.now())))
 
         val page = eventStore.listStreamIds(tenantId, streamType, PageRequest(page = 0, size = 50))
 
@@ -73,7 +90,7 @@ class EventStoreIntegrationTest : AbstractIntegrationTest() {
         val tenantId = UUID.randomUUID()
         val otherTenantId = UUID.randomUUID()
         val streamId = UUID.randomUUID()
-        eventStore.append(otherTenantId, streamId, streamType, 0, listOf(NewDomainEvent("Created", emptyMap(), occurredAt = Instant.now())))
+        eventStore.append(otherTenantId, streamId, streamType, 0, listOf(WidgetEvent(streamId, "Created", emptyMap(), Instant.now())))
 
         val page = eventStore.listStreamIds(tenantId, streamType, PageRequest(page = 0, size = 50))
 
