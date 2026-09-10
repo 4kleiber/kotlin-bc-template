@@ -45,9 +45,10 @@ that gives the exact order every event, from any bounded context, was ever creat
 ## Adding a new bounded context
 
 Follow the `notes` example end-to-end, one TDD cycle at a time — see `agent.md`'s **Using
-This Template → Adding a new bounded context** section for the full walkthrough (events →
-aggregate → a codec mapping them to the generic envelope → `@DomainService` calling the
-existing `EventStore` directly → unit tests → controller → integration test). There's no
+This Template → Adding a new bounded context** section for the full walkthrough (events
+extending `DomainEvent` directly → aggregate → a decoder for reading events back →
+`@DomainService` calling the existing `EventStore` directly → unit tests → controller →
+integration test). There's no
 storage-layer step: a new bounded context reuses the same `ExposedEventStore` bean as-is, no
 new table or adapter class. Because `DomainConfiguration` auto-registers every
 `@DomainService` via `@ComponentScan`, wiring a new bounded context's service never requires
