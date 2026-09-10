@@ -1,0 +1,36 @@
+services:
+  lgtm:
+    image: grafana/otel-lgtm:latest
+    ports:
+      - '3001:3000'
+      - '14317:4317'
+      - '14318:4318'
+
+  postgres:
+    restart: always
+    image: postgres:${POSTGRES_VERSION}
+    volumes:
+      - postgres:/var/lib/postgresql
+    environment:
+      - POSTGRES_PASSWORD=local
+      - POSTGRES_USER=local
+      - POSTGRES_DB=localdb
+    ports:
+      - 5432:5432
+
+  otelcol:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./otel-collector-config.yml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - lgtm
+
+
+volumes:
+  postgres:

@@ -1,0 +1,36 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+
+exporters:
+  # Forward logs to the application using JSON to avoid proto binary
+  # compatibility issues between the Go collector and the Java proto library.
+  otlp_http/bctemplate:
+    endpoint: http://host.docker.internal:8080
+    encoding: json
+  # Forward everything to LGTM for visualization in Grafana
+  otlp_http/lgtm:
+    endpoint: http://lgtm:4318
+
+service:
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp_http/bctemplate, otlp_http/lgtm]
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp_http/bctemplate, otlp_http/lgtm]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp_http/bctemplate, otlp_http/lgtm]
