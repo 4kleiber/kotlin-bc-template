@@ -8,49 +8,58 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-// Hand-written in-memory fake, per CLAUDE.md: domain-level unit tests use fakes, not a mocking framework.
-private class FakeNoteRepository : NoteRepository {
-    private val notes = mutableMapOf<UUID, Note>()
+// One fake implementing both ports, exactly mirroring how ExposedNoteEventStore keeps the
+// notes_projection table in sync with notes_events inside the same transaction: every append
+// immediately folds the new event onto the projection via Note.apply — no mocking framework
+// needed, per CLAUDE.md.
+private class FakeNoteEventStore : NoteEventStore, NoteRepository {
+    private val events = mutableMapOf<UUID, MutableList<NoteEvent>>()
+    private val projections = mutableMapOf<UUID, Note>()
 
-    override fun save(note: Note): Note {
-        val saved = if (note.id == null) note.copy(id = UUID.randomUUID()) else note
-        notes[saved.id!!] = saved
-        return saved
+    override fun append(aggregateId: UUID, expectedVersion: Long, events: List<NoteEvent>) {
+        val stream = this.events.getOrPut(aggregateId) { mutableListOf() }
+        if (stream.size.toLong() != expectedVersion) {
+            throw ConcurrentEventAppendException(aggregateId, expectedVersion, stream.size.toLong())
+        }
+        events.forEach { event ->
+            stream.add(event)
+            projections[aggregateId] = Note.apply(projections[aggregateId], event)
+        }
     }
 
+    override fun loadEvents(aggregateId: UUID): List<NoteEvent> = events[aggregateId].orEmpty()
+
+    override fun findById(id: UUID): Note? = projections[id]
+
     override fun findAll(pageRequest: PageRequest): Page<Note> {
-        val all = notes.values.toList()
+        val all = projections.values.toList()
         val fromIndex = (pageRequest.page * pageRequest.size).coerceAtMost(all.size)
         val toIndex = (fromIndex + pageRequest.size).coerceAtMost(all.size)
         val totalPages = if (all.isEmpty()) 0 else (all.size + pageRequest.size - 1) / pageRequest.size
-        return Page(
-            content = all.subList(fromIndex, toIndex),
-            totalElements = all.size.toLong(),
-            totalPages = totalPages,
-            page = pageRequest.page,
-            size = pageRequest.size,
-        )
+        return Page(all.subList(fromIndex, toIndex), all.size.toLong(), totalPages, pageRequest.page, pageRequest.size)
     }
-
-    override fun findById(id: UUID): Note? = notes[id]
 }
 
 class NoteServiceTest {
 
+    private fun newService(): Pair<NoteService, FakeNoteEventStore> {
+        val store = FakeNoteEventStore()
+        return NoteService(store, store) to store
+    }
+
     @Test
-    fun `createNote saves a new draft note`() {
-        val service = NoteService(FakeNoteRepository())
+    fun `createNote appends a NoteCreated event and returns the projected draft`() {
+        val (service, store) = newService()
 
         val note = service.createNote("Groceries", "Milk, eggs, bread")
 
         assertEquals(NoteStatus.DRAFT, note.status)
-        assertEquals("Groceries", note.title)
+        assertEquals(listOf(NoteCreated(note.id, "Groceries", "Milk, eggs, bread", note.createdAt)), store.loadEvents(note.id))
     }
 
     @Test
-    fun `listNotes delegates pagination to the repository`() {
-        val repository = FakeNoteRepository()
-        val service = NoteService(repository)
+    fun `listNotes delegates pagination to the projection`() {
+        val (service, _) = newService()
         service.createNote("First", "Body")
         service.createNote("Second", "Body")
 
@@ -61,76 +70,62 @@ class NoteServiceTest {
     }
 
     @Test
-    fun `findNote returns the note when it exists`() {
-        val repository = FakeNoteRepository()
-        val service = NoteService(repository)
+    fun `findNote returns the projected note when it exists`() {
+        val (service, _) = newService()
         val created = service.createNote("Groceries", "Milk, eggs, bread")
 
-        val found = service.findNote(created.id!!)
-
-        assertEquals(created, found)
+        assertEquals(created, service.findNote(created.id))
     }
 
     @Test
     fun `findNote returns null when the note does not exist`() {
-        val service = NoteService(FakeNoteRepository())
+        val (service, _) = newService()
 
-        val found = service.findNote(UUID.randomUUID())
-
-        assertNull(found)
+        assertNull(service.findNote(UUID.randomUUID()))
     }
 
     @Test
-    fun `publishNote publishes an existing draft`() {
-        val repository = FakeNoteRepository()
-        val service = NoteService(repository)
+    fun `publishNote appends NotePublished and returns the projected note`() {
+        val (service, store) = newService()
         val created = service.createNote("Groceries", "Milk, eggs, bread")
 
-        val published = service.publishNote(created.id!!)
+        val published = service.publishNote(created.id)
 
         assertTrue(published != null && published.status == NoteStatus.PUBLISHED)
-        assertEquals(NoteStatus.PUBLISHED, repository.findById(created.id)?.status)
+        assertEquals(2, store.loadEvents(created.id).size)
     }
 
     @Test
     fun `publishNote returns null when the note does not exist`() {
-        val service = NoteService(FakeNoteRepository())
+        val (service, _) = newService()
 
-        val published = service.publishNote(UUID.randomUUID())
-
-        assertNull(published)
+        assertNull(service.publishNote(UUID.randomUUID()))
     }
 
     @Test
     fun `publishNote returns null when the note cannot transition to published`() {
-        val repository = FakeNoteRepository()
-        val service = NoteService(repository)
+        val (service, _) = newService()
         val created = service.createNote("Groceries", "Milk, eggs, bread")
-        service.archiveNote(created.id!!)
+        service.archiveNote(created.id)
 
-        val published = service.publishNote(created.id)
-
-        assertNull(published)
+        assertNull(service.publishNote(created.id))
     }
 
     @Test
-    fun `archiveNote archives an existing note`() {
-        val repository = FakeNoteRepository()
-        val service = NoteService(repository)
+    fun `archiveNote appends NoteArchived and returns the projected note`() {
+        val (service, store) = newService()
         val created = service.createNote("Groceries", "Milk, eggs, bread")
 
-        val archived = service.archiveNote(created.id!!)
+        val archived = service.archiveNote(created.id)
 
         assertTrue(archived != null && archived.status == NoteStatus.ARCHIVED)
-        assertEquals(NoteStatus.ARCHIVED, repository.findById(created.id)?.status)
+        assertEquals(2, store.loadEvents(created.id).size)
     }
 
     @Test
     fun `archiveNote returns null when the note does not exist`() {
-        val service = NoteService(FakeNoteRepository())
+        val (service, _) = newService()
 
-        val archived = service.archiveNote(UUID.randomUUID())
-
-        assertNull(archived)
+        assertNull(service.archiveNote(UUID.randomUUID()))
     }
 }
