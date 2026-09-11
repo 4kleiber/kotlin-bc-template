@@ -1,0 +1,19 @@
+management:
+  tracing:
+    export:
+      enabled: false
+  otlp:
+    metrics:
+      export:
+        enabled: false
+spring:
+  application:
+    name: kotlin-bc-template
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/localdb?currentSchema=bctemplate
+    username: local
+    password: local
+  flyway:
+    schemas: bctemplate
+    create-schemas: true
