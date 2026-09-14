@@ -88,7 +88,7 @@ Technologies: Spring Boot MVC, kotlinx.html (frontend), OpenTelemetry (OTLP expo
 
 - **Backend**: Spring Boot with Kotlin
 - **Database**: Jetbrains Exposed (DSL API) for all database queries
-- **Frontend**: kotlinx.html with Bootstrap; UI components are implemented as extension functions on `FlowContent` (or the appropriate kotlinx.html receiver). Not every bounded context needs a UI page — the `notes` example includes one minimal page to demonstrate the convention; a REST controller alone is a valid and common choice for an API-only bounded context.
+- **Frontend**: kotlinx.html with a small hand-written stylesheet (no CSS framework); UI components are implemented as extension functions on `FlowContent` (or the appropriate kotlinx.html receiver). Not every bounded context needs a UI page — the `notes` example includes one minimal page to demonstrate the convention; a REST controller alone is a valid and common choice for an API-only bounded context.
 
 # Configuration
 
