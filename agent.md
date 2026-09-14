@@ -89,7 +89,7 @@ Technologies: Spring Boot MVC, kotlinx.html (frontend), OpenTelemetry (OTLP expo
 - **Backend**: Spring Boot with Kotlin
 - **Database**: Jetbrains Exposed (DSL API) for all database queries
 - **Enums are always persisted as strings, never as ordinals.** An Exposed table column backing an enum must use `enumerationByName(...)` (stores the enum's `name`), never `enumeration(...)` (stores the ordinal `Int`) — an ordinal silently breaks if the enum's declared order ever changes, while a name survives reordering and is readable directly in the database. The same applies to JSON: this template's `event_data`/`metadata` JSONB columns (see `EventsTable.kt`) are encoded via Jackson, which already serializes enums by name by default — never enable `SerializationFeature.WRITE_ENUMS_USING_INDEX` on that `JsonMapper`.
-- **Frontend**: kotlinx.html with Bootstrap; UI components are implemented as extension functions on `FlowContent` (or the appropriate kotlinx.html receiver). Not every bounded context needs a UI page — the `notes` example includes one minimal page to demonstrate the convention; a REST controller alone is a valid and common choice for an API-only bounded context.
+- **Frontend**: kotlinx.html with a small hand-written stylesheet (no CSS framework); UI components are implemented as extension functions on `FlowContent` (or the appropriate kotlinx.html receiver). Not every bounded context needs a UI page — the `notes` example includes one minimal page to demonstrate the convention; a REST controller alone is a valid and common choice for an API-only bounded context.
 
 # Configuration
 
