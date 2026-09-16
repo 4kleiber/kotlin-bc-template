@@ -84,3 +84,7 @@ Commits on `main` must follow [Conventional Commits](https://www.conventionalcom
 [release-please](https://github.com/googleapis/release-please) open or update a release PR;
 merging that PR tags a release, which triggers `.github/workflows/release.yml`'s `docker`
 job to build and push the image via Jib to `ghcr.io/<owner>/<repo>:<version>` and `:latest`.
+
+## License
+
+[MIT](LICENSE)
