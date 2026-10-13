@@ -42,7 +42,7 @@ dependencies {
     implementation("com.google.protobuf:protobuf-java")
     implementation("io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0:2.28.0-alpha")
     implementation("io.opentelemetry.instrumentation:opentelemetry-instrumentation-annotations:2.32.0")
-    implementation("net.ttddyy.observation:datasource-micrometer-spring-boot:2.2.1")
+    implementation("net.ttddyy.observation:datasource-micrometer-spring-boot:2.3.0")
 
     val kotlinxHtmlVersion = "0.12.0"
     implementation("org.jetbrains.kotlinx:kotlinx-html-jvm:${kotlinxHtmlVersion}")
