@@ -23,7 +23,7 @@ val mockitoAgent = configurations.create("mockitoAgent")
 
 dependencies {
     mockitoAgent("org.mockito:mockito-core") { isTransitive = false }
-    val flywayVersion = "13.10.0"
+    val flywayVersion = "13.10.3"
 
     val exposedVersion = "1.5.1"
     implementation(project(":domain"))
