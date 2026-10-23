@@ -41,7 +41,7 @@ dependencies {
     implementation("io.opentelemetry.proto:opentelemetry-proto:1.8.0-alpha")
     implementation("com.google.protobuf:protobuf-java")
     implementation("io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0:2.28.0-alpha")
-    implementation("io.opentelemetry.instrumentation:opentelemetry-instrumentation-annotations:2.32.0")
+    implementation("io.opentelemetry.instrumentation:opentelemetry-instrumentation-annotations:2.33.0")
     implementation("net.ttddyy.observation:datasource-micrometer-spring-boot:2.3.0")
 
     val kotlinxHtmlVersion = "0.12.0"
