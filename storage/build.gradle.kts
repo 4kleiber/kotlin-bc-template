@@ -25,7 +25,7 @@ dependencies {
     mockitoAgent("org.mockito:mockito-core") { isTransitive = false }
     val flywayVersion = "13.12.0"
 
-    val exposedVersion = "1.6.0"
+    val exposedVersion = "1.6.1"
     implementation(project(":domain"))
     implementation("org.jetbrains.exposed:exposed-spring-boot4-starter:$exposedVersion")
     implementation("org.jetbrains.exposed:exposed-core:$exposedVersion")
